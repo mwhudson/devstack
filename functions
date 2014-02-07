@@ -74,6 +74,8 @@ function upload_image {
             echo "Not found: $image_url"
             return
         fi
+
+        cp $IMAGE $FILES/.
     fi
 
     # OpenVZ-format images are provided as .tar.gz, but not decompressed prior to loading
