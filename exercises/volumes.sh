@@ -167,34 +167,42 @@ echo "Completed cinder create in $((end_time - start_time)) seconds"
 VOL_ID=$(cinder list | grep $VOL_NAME | head -1 | get_field 1)
 die_if_not_set $LINENO VOL_ID "Failure retrieving volume ID for $VOL_NAME"
 
-# Attach to server
-DEVICE=/dev/vdb
-start_time=$(date +%s)
-nova volume-attach $VM_UUID $VOL_ID $DEVICE || \
-    die $LINENO "Failure attaching volume $VOL_NAME to $VM_NAME"
-if ! timeout $ACTIVE_TIMEOUT sh -c "while ! cinder list | grep $VOL_NAME | grep in-use; do sleep 1; done"; then
-    die $LINENO "Volume $VOL_NAME not attached to $VM_NAME"
-fi
-end_time=$(date +%s)
-echo "Completed volume-attach in $((end_time - start_time)) seconds"
+if ! is_set SKIP_VOLUME_ATTACH_TEST; then
 
-VOL_ATTACH=$(cinder list | grep $VOL_NAME | head -1 | get_field -1)
-die_if_not_set $LINENO VOL_ATTACH "Failure retrieving $VOL_NAME status"
-if [[ "$VOL_ATTACH" != $VM_UUID ]]; then
-    die $LINENO "Volume not attached to correct instance"
+    # Attach to server
+    DEVICE=/dev/vdb
+    start_time=$(date +%s)
+    nova volume-attach $VM_UUID $VOL_ID $DEVICE || \
+        die $LINENO "Failure attaching volume $VOL_NAME to $VM_NAME"
+    if ! timeout $ACTIVE_TIMEOUT sh -c "while ! cinder list | grep $VOL_NAME | grep in-use; do sleep 1; done"; then
+        die $LINENO "Volume $VOL_NAME not attached to $VM_NAME"
+    fi
+    end_time=$(date +%s)
+    echo "Completed volume-attach in $((end_time - start_time)) seconds"
+
+    VOL_ATTACH=$(cinder list | grep $VOL_NAME | head -1 | get_field -1)
+    die_if_not_set $LINENO VOL_ATTACH "Failure retrieving $VOL_NAME status"
+    if [[ "$VOL_ATTACH" != $VM_UUID ]]; then
+        die $LINENO "Volume not attached to correct instance"
+    fi
+
 fi
 
 # Clean up
 # --------
 
-# Detach volume
-start_time=$(date +%s)
-nova volume-detach $VM_UUID $VOL_ID || die $LINENO "Failure detaching volume $VOL_NAME from $VM_NAME"
-if ! timeout $ACTIVE_TIMEOUT sh -c "while ! cinder list | grep $VOL_NAME | grep available; do sleep 1; done"; then
-    die $LINENO "Volume $VOL_NAME not detached from $VM_NAME"
+if ! is_set SKIP_VOLUME_ATTACH_TEST; then
+
+    # Detach volume
+    start_time=$(date +%s)
+    nova volume-detach $VM_UUID $VOL_ID || die $LINENO "Failure detaching volume $VOL_NAME from $VM_NAME"
+    if ! timeout $ACTIVE_TIMEOUT sh -c "while ! cinder list | grep $VOL_NAME | grep available; do sleep 1; done"; then
+        die $LINENO "Volume $VOL_NAME not detached from $VM_NAME"
+    fi
+    end_time=$(date +%s)
+    echo "Completed volume-detach in $((end_time - start_time)) seconds"
+
 fi
-end_time=$(date +%s)
-echo "Completed volume-detach in $((end_time - start_time)) seconds"
 
 # Delete volume
 start_time=$(date +%s)
